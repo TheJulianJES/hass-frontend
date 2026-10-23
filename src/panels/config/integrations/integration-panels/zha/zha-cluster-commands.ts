@@ -10,7 +10,7 @@ import type { Cluster, Command, ZHADevice } from "../../../../../data/zha";
 import { fetchCommandsForCluster } from "../../../../../data/zha";
 import { haStyle } from "../../../../../resources/styles";
 import type { HomeAssistant } from "../../../../../types";
-import { formatAsPaddedHex } from "./functions";
+import { computeCommandSecondary, computeCommandValue } from "./functions";
 import type { IssueCommandServiceData } from "./types";
 
 @customElement("zha-cluster-commands")
@@ -26,7 +26,7 @@ export class ZHAClusterCommands extends LitElement {
 
   @state() private _commands: Command[] | undefined;
 
-  @state() private _selectedCommandId?: number;
+  @state() private _selectedCommand?: Command;
 
   @state() private _manufacturerCodeOverride?: number;
 
@@ -42,7 +42,7 @@ export class ZHAClusterCommands extends LitElement {
   protected updated(changedProperties: PropertyValues<this>): void {
     if (changedProperties.has("selectedCluster")) {
       this._commands = undefined;
-      this._selectedCommandId = undefined;
+      this._selectCommand(undefined);
       this._fetchCommandsForCluster();
     }
     super.updated(changedProperties);
@@ -60,17 +60,24 @@ export class ZHAClusterCommands extends LitElement {
               "ui.panel.config.zha.cluster_commands.commands_of_cluster"
             )}
             class="menu"
-            .value=${String(this._selectedCommandId)}
+            .value=${
+              this._selectedCommand
+                ? computeCommandValue(this._selectedCommand)
+                : undefined
+            }
             @selected=${this._selectedCommandChanged}
             .options=${this._commands.map((entry) => ({
-              value: String(entry.id),
-              label: `${entry.name} (id: ${formatAsPaddedHex(entry.id)})`,
+              value: computeCommandValue(entry),
+              label: `${entry.name} (${computeCommandSecondary(
+                entry,
+                this.hass!.localize
+              )})`,
             }))}
           >
           </ha-select>
         </div>
         ${
-          this._selectedCommandId !== undefined
+          this._selectedCommand
             ? html`
                 <div class="input-text">
                   <ha-input
@@ -88,11 +95,7 @@ export class ZHAClusterCommands extends LitElement {
                 <div class="command-form">
                   <ha-form
                     .hass=${this.hass}
-                    .schema=${
-                      this._commands.find(
-                        (command) => command.id === this._selectedCommandId
-                      )!.schema
-                    }
+                    .schema=${this._selectedCommand.schema}
                     @value-changed=${this._commandDataChanged}
                     .data=${this._commandData}
                   ></ha-form>
@@ -127,58 +130,63 @@ export class ZHAClusterCommands extends LitElement {
         this.selectedCluster!.type
       );
       this._commands.sort((a, b) => a.name.localeCompare(b.name));
-      if (this._commands.length > 0) {
-        this._selectedCommandId = this._commands[0].id;
-      }
+      // Selecting a command programmatically fires no `selected` event, so the
+      // action data for the pre-selected command has to be derived here
+      this._selectCommand(this._commands[0]);
     }
   }
 
-  private _computeIssueClusterCommandServiceData():
-    IssueCommandServiceData | undefined {
-    if (!this.device || !this.selectedCluster || !this._commands) {
-      return undefined;
+  private _selectCommand(command?: Command): void {
+    this._selectedCommand = command;
+    // Commands have their own fields, so keeping the previous command's values
+    // would submit them under the new command's parameter names
+    this._commandData = {};
+    this._updateIssueClusterCommandServiceData();
+  }
+
+  private _updateIssueClusterCommandServiceData(): void {
+    const command = this._selectedCommand;
+    if (!this.device || !this.selectedCluster || !command) {
+      this._canIssueCommand = false;
+      this._issueClusterCommandServiceData = undefined;
+      return;
     }
-    const selectedCommand = this._commands.find(
-      (command) => command.id === this._selectedCommandId
+
+    this._canIssueCommand = command.schema.every(
+      (field) =>
+        !field.required ||
+        !["", undefined].includes(this._commandData[field.name])
     );
 
-    this._canIssueCommand =
-      this._commandData &&
-      selectedCommand!.schema.every(
-        (field) =>
-          !field.required ||
-          !["", undefined].includes(this._commandData![field.name])
-      );
-
-    return {
-      ieee: this.device!.ieee,
-      endpoint_id: this.selectedCluster!.endpoint_id,
-      cluster_id: this.selectedCluster!.id,
-      cluster_type: this.selectedCluster!.type,
-      command: this._selectedCommandId!,
-      command_type: selectedCommand!.type,
+    this._issueClusterCommandServiceData = {
+      ieee: this.device.ieee,
+      endpoint_id: this.selectedCluster.endpoint_id,
+      cluster_id: this.selectedCluster.id,
+      cluster_type: this.selectedCluster.type,
+      command: command.id,
+      command_type: command.type,
       params: this._commandData,
     };
   }
 
-  private async _commandDataChanged(ev: CustomEvent): Promise<void> {
+  private _commandDataChanged(ev: CustomEvent): void {
     this._commandData = ev.detail.value;
-    this._issueClusterCommandServiceData =
-      this._computeIssueClusterCommandServiceData();
+    this._updateIssueClusterCommandServiceData();
   }
 
   private _onManufacturerCodeOverrideChanged(event: InputEvent): void {
     this._manufacturerCodeOverride = Number(
       (event.target as HTMLInputElement).value
     );
-    this._issueClusterCommandServiceData =
-      this._computeIssueClusterCommandServiceData();
+    this._updateIssueClusterCommandServiceData();
   }
 
   private _selectedCommandChanged(event: HaSelectSelectEvent): void {
-    this._selectedCommandId = Number(event.detail.value);
-    this._issueClusterCommandServiceData =
-      this._computeIssueClusterCommandServiceData();
+    this._selectCommand(
+      this._commands?.find(
+        (command) => computeCommandValue(command) === event.detail.value
+      )
+    );
   }
 
   static get styles(): CSSResultGroup {

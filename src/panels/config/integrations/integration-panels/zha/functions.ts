@@ -1,5 +1,10 @@
 import type { LocalizeFunc } from "../../../../../common/translations/localize";
-import type { Cluster, ZHADevice, ZHAGroup } from "../../../../../data/zha";
+import type {
+  Cluster,
+  Command,
+  ZHADevice,
+  ZHAGroup,
+} from "../../../../../data/zha";
 
 export const formatAsPaddedHex = (value: string | number): string => {
   let hex = value;
@@ -41,3 +46,17 @@ export const computeClusterSecondary = (
 
 export const computeClusterValue = (cluster: Cluster): string =>
   `${cluster.endpoint_id}-${cluster.id}-${cluster.type}`;
+
+export const computeCommandSecondary = (
+  command: Command,
+  localize: LocalizeFunc
+): string =>
+  localize("ui.panel.config.zha.cluster_commands.command_description", {
+    id: formatAsPaddedHex(command.id),
+    type: command.type,
+  });
+
+// A Zigbee command ID is only unique within one direction, so a cluster can define
+// a client and a server command with the same ID
+export const computeCommandValue = (command: Command): string =>
+  `${command.id}-${command.name}-${command.type}`;
