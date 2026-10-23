@@ -8415,6 +8415,7 @@
           "cluster_commands": {
             "header": "Cluster commands",
             "introduction": "View and issue cluster commands.",
+            "command_description": "ID: {id} \u00b7 Type: {type}",
             "commands_of_cluster": "Commands of the selected cluster",
             "issue_zigbee_command": "Issue Zigbee command",
             "help_command_dropdown": "Select a command to interact with."
