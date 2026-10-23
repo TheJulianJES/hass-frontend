@@ -1,5 +1,6 @@
 import type { LocalizeFunc } from "../../../../../common/translations/localize";
 import type {
+  Attribute,
   Cluster,
   Command,
   ZHADevice,
@@ -60,3 +61,19 @@ export const computeCommandSecondary = (
 // a client and a server command with the same ID
 export const computeCommandValue = (command: Command): string =>
   `${command.id}-${command.name}-${command.type}`;
+
+export const computeAttributeSecondary = (
+  attribute: Attribute,
+  localize: LocalizeFunc
+): string =>
+  typeof attribute.manufacturer_code === "number"
+    ? localize(
+        "ui.panel.config.zha.cluster_attributes.attribute_description_manufacturer_specific",
+        {
+          id: formatAsPaddedHex(attribute.id),
+          manufacturer_code: formatAsPaddedHex(attribute.manufacturer_code),
+        }
+      )
+    : localize("ui.panel.config.zha.cluster_attributes.attribute_description", {
+        id: formatAsPaddedHex(attribute.id),
+      });

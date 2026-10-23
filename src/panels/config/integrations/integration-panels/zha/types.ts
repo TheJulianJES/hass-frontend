@@ -23,9 +23,8 @@ export interface SetAttributeServiceData {
   endpoint_id: number;
   cluster_id: number;
   cluster_type: string;
-  attribute: number;
+  attribute: string | number;
   value: any;
-  manufacturer?: number;
 }
 
 export interface IssueCommandServiceData {

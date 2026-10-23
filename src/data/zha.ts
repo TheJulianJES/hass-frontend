@@ -75,6 +75,8 @@ export interface ZHADeviceEndpoint {
 export interface Attribute {
   name: string;
   id: number;
+  // The manufacturer code the definition declares, or `null` if it declares none
+  manufacturer_code: number | null;
 }
 
 export interface Cluster {
@@ -142,8 +144,8 @@ export interface ReadAttributeServiceData {
   endpoint_id: number;
   cluster_id: number;
   cluster_type: string;
-  attribute: number;
-  manufacturer?: number;
+  // An attribute name, which is unique, or an ID, which is not
+  attribute: string | number;
 }
 
 export interface ZHAGroup {

@@ -8216,7 +8216,6 @@
         "zha": {
           "common": {
             "clusters": "Clusters",
-            "manufacturer_code_override": "Manufacturer code override",
             "value": "Value"
           },
           "configuration_page": {
@@ -8325,6 +8324,8 @@
           "cluster_attributes": {
             "header": "Cluster attributes",
             "introduction": "View and edit cluster attributes.",
+            "attribute_description": "ID: {id}",
+            "attribute_description_manufacturer_specific": "ID: {id} · Manufacturer code: {manufacturer_code}",
             "attributes_of_cluster": "Attributes of the selected cluster",
             "read_zigbee_attribute": "Read attribute",
             "write_zigbee_attribute": "Write attribute"

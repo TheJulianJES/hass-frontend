@@ -19,7 +19,7 @@ import {
 } from "../../../../../data/zha";
 import { haStyle } from "../../../../../resources/styles";
 import type { HomeAssistant } from "../../../../../types";
-import { formatAsPaddedHex } from "./functions";
+import { computeAttributeSecondary } from "./functions";
 import type { SetAttributeServiceData } from "./types";
 
 @customElement("zha-cluster-attributes")
@@ -33,11 +33,9 @@ export class ZHAClusterAttributes extends LitElement {
 
   @state() private _attributes: Attribute[] | undefined;
 
-  @state() private _selectedAttributeId?: number;
+  @state() private _selectedAttribute?: Attribute;
 
   @state() private _attributeValue?: any = "";
-
-  @state() private _manufacturerCodeOverride?: string | number;
 
   @state() private _readingAttribute = false;
 
@@ -47,8 +45,7 @@ export class ZHAClusterAttributes extends LitElement {
   protected updated(changedProperties: PropertyValues<this>): void {
     if (changedProperties.has("selectedCluster")) {
       this._attributes = undefined;
-      this._selectedAttributeId = undefined;
-      this._attributeValue = "";
+      this._selectAttribute(undefined);
       this._fetchAttributesForCluster();
     }
     super.updated(changedProperties);
@@ -66,20 +63,19 @@ export class ZHAClusterAttributes extends LitElement {
               "ui.panel.config.zha.cluster_attributes.attributes_of_cluster"
             )}
             class="menu"
-            .value=${this._selectedAttributeId}
+            .value=${this._selectedAttribute?.name}
             @selected=${this._selectedAttributeChanged}
             .options=${this._attributes.map((entry) => ({
-              value: entry.id,
-              label: `${entry.name} (id: ${formatAsPaddedHex(entry.id)})`,
+              value: entry.name,
+              label: `${entry.name} (${computeAttributeSecondary(
+                entry,
+                this.hass!.localize
+              )})`,
             }))}
           >
           </ha-select>
         </div>
-        ${
-          this._selectedAttributeId !== undefined
-            ? this._renderAttributeInteractions()
-            : nothing
-        }
+        ${this._selectedAttribute ? this._renderAttributeInteractions() : nothing}
       </div>
     `;
   }
@@ -91,19 +87,6 @@ export class ZHAClusterAttributes extends LitElement {
           .label=${this.hass!.localize("ui.panel.config.zha.common.value")}
           .value=${this._attributeValue}
           @change=${this._onAttributeValueChanged}
-          .placeholder=${this.hass!.localize(
-            "ui.panel.config.zha.common.value"
-          )}
-        ></ha-input>
-      </div>
-      <div class="input-text">
-        <ha-input
-          .label=${this.hass!.localize(
-            "ui.panel.config.zha.common.manufacturer_code_override"
-          )}
-          type="number"
-          .value=${this._manufacturerCodeOverride}
-          @change=${this._onManufacturerCodeOverrideChanged}
           .placeholder=${this.hass!.localize(
             "ui.panel.config.zha.common.value"
           )}
@@ -134,52 +117,58 @@ export class ZHAClusterAttributes extends LitElement {
 
   private async _fetchAttributesForCluster(): Promise<void> {
     if (this.device && this.selectedCluster && this.hass) {
-      this._attributes = await fetchAttributesForCluster(
+      const cluster = this.selectedCluster;
+      const attributes = await fetchAttributesForCluster(
         this.hass,
-        this.device!.ieee,
-        this.selectedCluster!.endpoint_id,
-        this.selectedCluster!.id,
-        this.selectedCluster!.type
+        this.device.ieee,
+        cluster.endpoint_id,
+        cluster.id,
+        cluster.type
       );
-      this._attributes.sort((a, b) => a.name.localeCompare(b.name));
-      if (this._attributes.length > 0) {
-        this._selectedAttributeId = this._attributes[0].id;
+      // Another cluster can be selected while this request is in flight
+      if (this.selectedCluster !== cluster) {
+        return;
       }
+      attributes.sort((a, b) => a.name.localeCompare(b.name));
+      this._attributes = attributes;
+      // Selecting an attribute programmatically fires no `selected` event, so the
+      // action data for the pre-selected attribute has to be derived here
+      this._selectAttribute(attributes[0]);
     }
+  }
+
+  private _selectAttribute(attribute?: Attribute): void {
+    this._selectedAttribute = attribute;
+    this._attributeValue = "";
+    this._setAttributeServiceData = this._computeSetAttributeServiceData();
   }
 
   private _computeReadAttributeServiceData():
     ReadAttributeServiceData | undefined {
-    if (!this.selectedCluster || !this.device) {
+    if (!this.selectedCluster || !this.device || !this._selectedAttribute) {
       return undefined;
     }
     return {
-      ieee: this.device!.ieee,
-      endpoint_id: this.selectedCluster!.endpoint_id,
-      cluster_id: this.selectedCluster!.id,
-      cluster_type: this.selectedCluster!.type,
-      attribute: this._selectedAttributeId!,
-      manufacturer: this._manufacturerCodeOverride
-        ? parseInt(this._manufacturerCodeOverride as string, 10)
-        : undefined,
+      ieee: this.device.ieee,
+      endpoint_id: this.selectedCluster.endpoint_id,
+      cluster_id: this.selectedCluster.id,
+      cluster_type: this.selectedCluster.type,
+      attribute: this._selectedAttribute.name,
     };
   }
 
   private _computeSetAttributeServiceData():
     SetAttributeServiceData | undefined {
-    if (!this.selectedCluster || !this.device) {
+    if (!this.selectedCluster || !this.device || !this._selectedAttribute) {
       return undefined;
     }
     return {
-      ieee: this.device!.ieee,
-      endpoint_id: this.selectedCluster!.endpoint_id,
-      cluster_id: this.selectedCluster!.id,
-      cluster_type: this.selectedCluster!.type,
-      attribute: this._selectedAttributeId!,
+      ieee: this.device.ieee,
+      endpoint_id: this.selectedCluster.endpoint_id,
+      cluster_id: this.selectedCluster.id,
+      cluster_type: this.selectedCluster.type,
+      attribute: this._selectedAttribute.name,
       value: this._attributeValue,
-      manufacturer: this._manufacturerCodeOverride
-        ? parseInt(this._manufacturerCodeOverride as string, 10)
-        : undefined,
     };
   }
 
@@ -188,18 +177,21 @@ export class ZHAClusterAttributes extends LitElement {
     this._setAttributeServiceData = this._computeSetAttributeServiceData();
   }
 
-  private _onManufacturerCodeOverrideChanged(event: InputEvent): void {
-    this._manufacturerCodeOverride = (event.target as HTMLInputElement).value;
-    this._setAttributeServiceData = this._computeSetAttributeServiceData();
-  }
-
   private async _onGetZigbeeAttributeClick(ev: CustomEvent): Promise<void> {
     const button = ev.currentTarget as any;
+    const attribute = this._selectedAttribute;
     const data = this._computeReadAttributeServiceData();
     if (data && this.hass) {
       this._readingAttribute = true;
       try {
-        this._attributeValue = await readAttributeValue(this.hass, data);
+        const value = await readAttributeValue(this.hass, data);
+        // The selection can change while the read is in flight, and the value
+        // read belongs to the attribute that was selected when it started
+        if (this._selectedAttribute === attribute) {
+          this._attributeValue = value;
+          this._setAttributeServiceData =
+            this._computeSetAttributeServiceData();
+        }
         forwardHaptic(this, "success");
         button.actionSuccess();
       } catch (_err: any) {
@@ -212,8 +204,11 @@ export class ZHAClusterAttributes extends LitElement {
   }
 
   private _selectedAttributeChanged(event: HaSelectSelectEvent): void {
-    this._selectedAttributeId = Number(event.detail.value);
-    this._attributeValue = "";
+    this._selectAttribute(
+      this._attributes?.find(
+        (attribute) => attribute.name === event.detail.value
+      )
+    );
   }
 
   static get styles(): CSSResultGroup {
