@@ -5,7 +5,6 @@ import "../../../../../components/buttons/ha-call-service-button";
 import "../../../../../components/ha-form/ha-form";
 import "../../../../../components/ha-select";
 import type { HaSelectSelectEvent } from "../../../../../components/ha-select";
-import "../../../../../components/input/ha-input";
 import type { Cluster, Command, ZHADevice } from "../../../../../data/zha";
 import { fetchCommandsForCluster } from "../../../../../data/zha";
 import { haStyle } from "../../../../../resources/styles";
@@ -27,8 +26,6 @@ export class ZHAClusterCommands extends LitElement {
   @state() private _commands: Command[] | undefined;
 
   @state() private _selectedCommand?: Command;
-
-  @state() private _manufacturerCodeOverride?: number;
 
   @state()
   private _issueClusterCommandServiceData?: IssueCommandServiceData;
@@ -79,19 +76,6 @@ export class ZHAClusterCommands extends LitElement {
         ${
           this._selectedCommand
             ? html`
-                <div class="input-text">
-                  <ha-input
-                    .label=${this.hass!.localize(
-                      "ui.panel.config.zha.common.manufacturer_code_override"
-                    )}
-                    type="number"
-                    .value=${this._manufacturerCodeOverride}
-                    @change=${this._onManufacturerCodeOverrideChanged}
-                    .placeholder=${this.hass!.localize(
-                      "ui.panel.config.zha.common.value"
-                    )}
-                  ></ha-input>
-                </div>
                 <div class="command-form">
                   <ha-form
                     .hass=${this.hass}
@@ -174,13 +158,6 @@ export class ZHAClusterCommands extends LitElement {
     this._updateIssueClusterCommandServiceData();
   }
 
-  private _onManufacturerCodeOverrideChanged(event: InputEvent): void {
-    this._manufacturerCodeOverride = Number(
-      (event.target as HTMLInputElement).value
-    );
-    this._updateIssueClusterCommandServiceData();
-  }
-
   private _selectedCommandChanged(event: HaSelectSelectEvent): void {
     this._selectCommand(
       this._commands?.find(
@@ -204,20 +181,11 @@ export class ZHAClusterCommands extends LitElement {
         ha-select {
           margin-top: 16px;
         }
-        .menu,
-        ha-input {
+        .menu {
           width: 100%;
         }
 
         .command-picker {
-          padding-left: 28px;
-          padding-right: 28px;
-          padding-inline-start: 28px;
-          padding-inline-end: 28px;
-          padding-bottom: 10px;
-        }
-
-        .input-text {
           padding-left: 28px;
           padding-right: 28px;
           padding-inline-start: 28px;
