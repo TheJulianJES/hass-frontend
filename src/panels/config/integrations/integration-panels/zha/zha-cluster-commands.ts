@@ -106,17 +106,23 @@ export class ZHAClusterCommands extends LitElement {
 
   private async _fetchCommandsForCluster(): Promise<void> {
     if (this.device && this.selectedCluster && this.hass) {
-      this._commands = await fetchCommandsForCluster(
+      const cluster = this.selectedCluster;
+      const commands = await fetchCommandsForCluster(
         this.hass,
-        this.device!.ieee,
-        this.selectedCluster!.endpoint_id,
-        this.selectedCluster!.id,
-        this.selectedCluster!.type
+        this.device.ieee,
+        cluster.endpoint_id,
+        cluster.id,
+        cluster.type
       );
-      this._commands.sort((a, b) => a.name.localeCompare(b.name));
+      // Another cluster can be selected while this request is in flight
+      if (this.selectedCluster !== cluster) {
+        return;
+      }
+      commands.sort((a, b) => a.name.localeCompare(b.name));
+      this._commands = commands;
       // Selecting a command programmatically fires no `selected` event, so the
       // action data for the pre-selected command has to be derived here
-      this._selectCommand(this._commands[0]);
+      this._selectCommand(commands[0]);
     }
   }
 
